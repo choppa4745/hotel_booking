@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: hotel_booking
+      POSTGRES_USER: postgres  # Используем стандартного пользователя
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5443:5432"
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
+#    networks:
+#      - hotel-network
+
+#volumes:
+#  postgres_data:
+#
+#networks:
+#  hotel-network:
+#    driver: bridge

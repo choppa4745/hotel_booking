@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Тестовые данные для типов номеров -->
+    <changeSet id="100" author="hotel-system">
+        <sql>
+            INSERT INTO room_types (type_name, base_price, max_guests, description) VALUES
+                                                                                        ('STANDARD', 100.00, 2, 'Standard room with basic amenities'),
+                                                                                        ('DELUXE', 150.00, 3, 'Deluxe room with extra space and amenities'),
+                                                                                        ('SUITE', 250.00, 4, 'Luxury suite with separate living area'),
+                                                                                        ('FAMILY', 180.00, 5, 'Family room with multiple beds');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для номеров -->
+    <changeSet id="101" author="hotel-system">
+        <sql>
+            INSERT INTO rooms (room_number, type_id, floor) VALUES
+                                                                ('101', 1, 1), ('102', 1, 1), ('103', 1, 1),
+                                                                ('201', 2, 2), ('202', 2, 2), ('203', 2, 2),
+                                                                ('301', 3, 3), ('302', 3, 3),
+                                                                ('401', 4, 4), ('402', 4, 4);
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для удобств -->
+    <changeSet id="102" author="hotel-system">
+        <sql>
+            INSERT INTO amenities (amenity_name, description) VALUES
+                                                                  ('WiFi', 'Free high-speed internet'),
+                                                                  ('TV', 'Flat-screen television'),
+                                                                  ('Air Conditioning', 'Climate control system'),
+                                                                  ('Mini Bar', 'Mini refrigerator with drinks'),
+                                                                  ('Safe', 'In-room safe for valuables');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для связи номеров и удобств -->
+    <changeSet id="103" author="hotel-system">
+        <sql>
+            INSERT INTO room_amenities (room_id, amenity_id) VALUES
+                                                                 (1,1), (1,2), (1,3),
+                                                                 (2,1), (2,2), (2,3),
+                                                                 (5,1), (5,2), (5,3), (5,4), (5,5),
+                                                                 (8,1), (8,2), (8,3), (8,4), (8,5);
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для гостей -->
+    <changeSet id="104" author="hotel-system">
+        <sql>
+            INSERT INTO guests (first_name, last_name, email, phone, passport_number, date_of_birth) VALUES
+                                                                                                         ('John', 'Smith', 'john.smith@email.com', '+1234567890', 'AB123456', '1985-05-15'),
+                                                                                                         ('Maria', 'Garcia', 'maria.garcia@email.com', '+1234567891', 'CD789012', '1990-08-22'),
+                                                                                                         ('David', 'Johnson', 'david.johnson@email.com', '+1234567892', 'EF345678', '1978-12-10'),
+                                                                                                         ('Sarah', 'Wilson', 'sarah.wilson@email.com', '+1234567893', 'GH901234', '1992-03-25');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для сотрудников -->
+    <changeSet id="105" author="hotel-system">
+        <sql>
+            INSERT INTO employees (first_name, last_name, email, phone, position, hire_date) VALUES
+                                                                                                 ('Robert', 'Brown', 'robert.brown@hotel.com', '+1987654321', 'Manager', '2020-01-15'),
+                                                                                                 ('Emily', 'Wilson', 'emily.wilson@hotel.com', '+1987654322', 'Receptionist', '2021-03-20'),
+                                                                                                 ('Michael', 'Davis', 'michael.davis@hotel.com', '+1987654323', 'Housekeeper', '2022-01-15');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для пользователей -->
+    <changeSet id="106" author="hotel-system">
+        <sql>
+            INSERT INTO users (username, password_hash, email, role, guest_id, employee_id) VALUES
+                                                                                                ('admin', 'hashed_admin_password', 'admin@hotel.com', 'ADMIN', NULL, 1),
+                                                                                                ('operator1', 'hashed_operator_password', 'emily.wilson@hotel.com', 'OPERATOR', NULL, 2),
+                                                                                                ('client1', 'hashed_client_password', 'john.smith@email.com', 'CLIENT', 1, NULL),
+                                                                                                ('client2', 'hashed_client_password', 'maria.garcia@email.com', 'CLIENT', 2, NULL);
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для бронирований -->
+    <changeSet id="107" author="hotel-system">
+        <sql>
+            INSERT INTO bookings (guest_id, room_id, check_in_date, check_out_date, status) VALUES
+                                                                                                (1, 1, '2024-01-15', '2024-01-20', 'CHECKED_OUT'),
+                                                                                                (2, 5, '2024-02-01', '2024-02-05', 'CONFIRMED'),
+                                                                                                (3, 8, CURRENT_DATE + 1, CURRENT_DATE + 3, 'PENDING'),
+                                                                                                (1, 3, CURRENT_DATE + 5, CURRENT_DATE + 7, 'CONFIRMED');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для дополнительных гостей -->
+    <changeSet id="108" author="hotel-system">
+        <sql>
+            INSERT INTO booking_guests (booking_id, guest_id) VALUES
+                                                                  (1, 2),  -- Maria Garcia в бронировании John Smith
+                                                                  (1, 3);  -- David Johnson в бронировании John Smith
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для графика уборки -->
+    <changeSet id="109" author="hotel-system">
+        <sql>
+            INSERT INTO cleaning_schedule (room_id, employee_id, cleaning_date, start_time, end_time) VALUES
+                                                                                                          (1, 3, CURRENT_DATE, '09:00', '10:30'),
+                                                                                                          (2, 3, CURRENT_DATE, '10:30', '11:45'),
+                                                                                                          (5, 3, CURRENT_DATE + 1, '08:00', NULL);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

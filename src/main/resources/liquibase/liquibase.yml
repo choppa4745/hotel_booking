@@ -1,0 +1,6 @@
+#url: jdbc:postgresql://localhost:5432/hotel_booking_system
+#username: hotel_user
+#password: hotel_password
+#driver: org.postgresql.Driver
+#changeLogFile: changelog/db.changelog-master.yml
+#logLevel: info
