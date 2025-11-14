@@ -11,12 +11,16 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
   liquibase:
     enabled: true
     change-log: classpath:liquibase/changelog/db.changelog-master.xml
 
-logging:
-  level:
-    org.springframework.jdbc.core: DEBUG
-    liquibase: DEBUG
-    com.hotel: DEBUG
+server:
+  port: 8080
+
+#logging:
+#  level:
+#    org.springframework.jdbc.core: DEBUG
+#    liquibase: DEBUG
+#    com.hotel: DEBUG

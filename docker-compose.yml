@@ -3,7 +3,7 @@ services:
     image: postgres:latest
     environment:
       POSTGRES_DB: hotel_booking
-      POSTGRES_USER: postgres  # Используем стандартного пользователя
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5443:5432"

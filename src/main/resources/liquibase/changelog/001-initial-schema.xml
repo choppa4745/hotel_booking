@@ -5,6 +5,13 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
+    <!-- Включаем расширение для UUID в PostgreSQL -->
+    <changeSet id="0" author="hotel-system">
+        <sql>
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        </sql>
+    </changeSet>
+
     <!-- Создание пользовательских типов -->
     <changeSet id="1" author="hotel-system">
         <sql>
@@ -17,7 +24,7 @@
     <!-- Таблица типов номеров -->
     <changeSet id="2" author="hotel-system">
         <createTable tableName="room_types">
-            <column name="type_id" type="SERIAL" autoIncrement="true">
+            <column name="type_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="type_name" type="VARCHAR(50)">
@@ -45,13 +52,13 @@
     <!-- Таблица номеров -->
     <changeSet id="4" author="hotel-system">
         <createTable tableName="rooms">
-            <column name="room_id" type="SERIAL" autoIncrement="true">
+            <column name="room_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="room_number" type="VARCHAR(10)">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="type_id" type="INTEGER">
+            <column name="type_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_rooms_type_id" references="room_types(type_id)"/>
             </column>
             <column name="floor" type="INTEGER">
@@ -72,7 +79,7 @@
     <!-- Таблица удобств -->
     <changeSet id="6" author="hotel-system">
         <createTable tableName="amenities">
-            <column name="amenity_id" type="SERIAL" autoIncrement="true">
+            <column name="amenity_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="amenity_name" type="VARCHAR(100)">
@@ -86,21 +93,20 @@
     <!-- Таблица связи номеров и удобств -->
     <changeSet id="7" author="hotel-system">
         <createTable tableName="room_amenities">
-            <column name="room_id" type="INTEGER">
+            <column name="room_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_room_amenities_room_id" references="rooms(room_id)"/>
             </column>
-            <column name="amenity_id" type="INTEGER">
+            <column name="amenity_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_room_amenities_amenity_id" references="amenities(amenity_id)"/>
             </column>
         </createTable>
-
         <addPrimaryKey tableName="room_amenities" columnNames="room_id, amenity_id"/>
     </changeSet>
 
     <!-- Таблица гостей -->
     <changeSet id="8" author="hotel-system">
         <createTable tableName="guests">
-            <column name="guest_id" type="SERIAL" autoIncrement="true">
+            <column name="guest_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="first_name" type="VARCHAR(100)">
@@ -124,13 +130,13 @@
     <!-- Таблица бронирований -->
     <changeSet id="9" author="hotel-system">
         <createTable tableName="bookings">
-            <column name="booking_id" type="SERIAL" autoIncrement="true">
+            <column name="booking_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="guest_id" type="INTEGER">
+            <column name="guest_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_bookings_guest_id" references="guests(guest_id)"/>
             </column>
-            <column name="room_id" type="INTEGER">
+            <column name="room_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_bookings_room_id" references="rooms(room_id)"/>
             </column>
             <column name="check_in_date" type="DATE">
@@ -155,13 +161,13 @@
     <!-- Таблица дополнительных гостей -->
     <changeSet id="11" author="hotel-system">
         <createTable tableName="booking_guests">
-            <column name="booking_guest_id" type="SERIAL" autoIncrement="true">
+            <column name="booking_guest_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="booking_id" type="INTEGER">
+            <column name="booking_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_booking_guests_booking_id" references="bookings(booking_id)"/>
             </column>
-            <column name="guest_id" type="INTEGER">
+            <column name="guest_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_booking_guests_guest_id" references="guests(guest_id)"/>
             </column>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
@@ -171,7 +177,7 @@
     <!-- Таблица сотрудников -->
     <changeSet id="12" author="hotel-system">
         <createTable tableName="employees">
-            <column name="employee_id" type="SERIAL" autoIncrement="true">
+            <column name="employee_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="first_name" type="VARCHAR(100)">
@@ -198,13 +204,13 @@
     <!-- Таблица графика уборки -->
     <changeSet id="13" author="hotel-system">
         <createTable tableName="cleaning_schedule">
-            <column name="schedule_id" type="SERIAL" autoIncrement="true">
+            <column name="schedule_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="room_id" type="INTEGER">
+            <column name="room_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_cleaning_schedule_room_id" references="rooms(room_id)"/>
             </column>
-            <column name="employee_id" type="INTEGER">
+            <column name="employee_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_cleaning_schedule_employee_id" references="employees(employee_id)"/>
             </column>
             <column name="cleaning_date" type="DATE">
@@ -222,10 +228,10 @@
     <!-- Таблица истории бронирований -->
     <changeSet id="14" author="hotel-system">
         <createTable tableName="booking_history">
-            <column name="history_id" type="SERIAL" autoIncrement="true">
+            <column name="history_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="booking_id" type="INTEGER">
+            <column name="booking_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="old_status" type="VARCHAR(20)"/>
@@ -239,10 +245,10 @@
     <!-- Таблица истории цен -->
     <changeSet id="15" author="hotel-system">
         <createTable tableName="price_history">
-            <column name="price_history_id" type="SERIAL" autoIncrement="true">
+            <column name="price_history_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="room_type_id" type="INTEGER">
+            <column name="room_type_id" type="UUID">
                 <constraints nullable="false" foreignKeyName="fk_price_history_room_type_id" references="room_types(type_id)"/>
             </column>
             <column name="old_price" type="DECIMAL(10,2)"/>
@@ -255,7 +261,7 @@
     <!-- Таблица пользователей -->
     <changeSet id="16" author="hotel-system">
         <createTable tableName="users">
-            <column name="user_id" type="SERIAL" autoIncrement="true">
+            <column name="user_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="username" type="VARCHAR(100)">
@@ -270,10 +276,10 @@
             <column name="role" type="VARCHAR(20)">
                 <constraints nullable="false"/>
             </column>
-            <column name="guest_id" type="INTEGER">
+            <column name="guest_id" type="UUID">
                 <constraints foreignKeyName="fk_users_guest_id" references="guests(guest_id)"/>
             </column>
-            <column name="employee_id" type="INTEGER">
+            <column name="employee_id" type="UUID">
                 <constraints foreignKeyName="fk_users_employee_id" references="employees(employee_id)"/>
             </column>
             <column name="is_active" type="BOOLEAN" defaultValueBoolean="true"/>
@@ -292,5 +298,4 @@
                     );
         </sql>
     </changeSet>
-
 </databaseChangeLog>

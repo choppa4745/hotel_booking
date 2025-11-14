@@ -48,27 +48,64 @@
         </createView>
     </changeSet>
 
-    <!-- Функция для расчета стоимости бронирования -->
+    <!-- Функция для расчета стоимости бронирования (обновлена для UUID) -->
     <changeSet id="202" author="hotel-system">
-        <sqlFile path="liquibase/changelog/calculate_booking_price.sql"
-                 splitStatements="false"/>
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION calculate_booking_price(
+                p_room_id UUID,
+                p_check_in_date DATE,
+                p_check_out_date DATE
+            ) RETURNS DECIMAL(10,2) AS $$
+            DECLARE
+            v_nights INTEGER;
+                v_base_price DECIMAL(10,2);
+                v_total_price DECIMAL(10,2);
+                v_season_multiplier DECIMAL(3,2) := 1.0;
+            BEGIN
+                v_nights := p_check_out_date - p_check_in_date;
+
+                IF v_nights &lt;= 0 THEN
+                    RAISE EXCEPTION 'Invalid date range';
+            END IF;
+
+            SELECT base_price INTO v_base_price
+            FROM rooms r
+                     JOIN room_types rt ON r.type_id = rt.type_id
+            WHERE r.room_id = p_room_id;
+
+            IF EXTRACT(MONTH FROM p_check_in_date) IN (6,7,8,12) THEN
+                    v_season_multiplier := 1.2;
+                ELSIF EXTRACT(MONTH FROM p_check_in_date) IN (1,2,11) THEN
+                    v_season_multiplier := 0.8;
+            END IF;
+
+                IF v_nights &gt;= 7 THEN
+                    v_season_multiplier := v_season_multiplier * 0.9;
+                ELSIF v_nights &gt;= 3 THEN
+                    v_season_multiplier := v_season_multiplier * 0.95;
+            END IF;
+
+                v_total_price := v_base_price * v_nights * v_season_multiplier;
+            RETURN v_total_price;
+            END; $$ LANGUAGE plpgsql;
+        </sql>
     </changeSet>
 
-    <!-- Функция для поиска свободных номеров на период -->
+    <!-- Функция для поиска свободных номеров на период (обновлена для UUID) -->
     <changeSet id="203" author="hotel-system">
-        <createProcedure>
+        <sql splitStatements="false" stripComments="false">
             CREATE OR REPLACE FUNCTION find_available_rooms(
-    p_check_in_date DATE,
-    p_check_out_date DATE,
-    p_room_type VARCHAR DEFAULT NULL
-) RETURNS TABLE(
-    room_id INTEGER,
-    room_number VARCHAR,
-    type_name VARCHAR,
-    base_price DECIMAL(10,2),
-    max_guests INTEGER,
-    floor INTEGER
-) AS $func$
+                p_check_in_date DATE,
+                p_check_out_date DATE,
+                p_room_type VARCHAR DEFAULT NULL
+            ) RETURNS TABLE(
+                room_id UUID,
+                room_number VARCHAR,
+                type_name VARCHAR,
+                base_price DECIMAL(10,2),
+                max_guests INTEGER,
+                floor INTEGER
+            ) AS $$
             BEGIN
             RETURN QUERY
             SELECT
@@ -89,25 +126,25 @@
                   AND (p_check_in_date, p_check_out_date) OVERLAPS (b.check_in_date, b.check_out_date)
             );
             END;
-            $func$ LANGUAGE plpgsql;
-        </createProcedure>
+            $$ LANGUAGE plpgsql;
+        </sql>
     </changeSet>
 
-    <!-- Процедура для создания бронирования -->
+    <!-- Процедура для создания бронирования (обновлена для UUID) -->
     <changeSet id="204" author="hotel-system">
-        <createProcedure>
+        <sql splitStatements="false" stripComments="false">
             CREATE OR REPLACE FUNCTION create_booking(
-                p_guest_id INTEGER,
-                p_room_id INTEGER,
+                p_guest_id UUID,
+                p_room_id UUID,
                 p_check_in_date DATE,
                 p_check_out_date DATE,
-                p_additional_guest_ids INTEGER[] DEFAULT NULL
-            ) RETURNS INTEGER AS  $func$
+                p_additional_guest_ids UUID[] DEFAULT NULL
+            ) RETURNS UUID AS $$
             DECLARE
-            v_booking_id INTEGER;
+            v_booking_id UUID;
                 v_guest_count INTEGER;
                 v_max_guests INTEGER;
-                v_additional_guest_id INTEGER;
+                v_additional_guest_id UUID;
                 v_is_available BOOLEAN;
             BEGIN
                 -- Проверка доступности номера
@@ -140,7 +177,7 @@
                     v_guest_count := v_guest_count + array_length(p_additional_guest_ids, 1);
             END IF;
 
-                IF v_guest_count > v_max_guests THEN
+                IF v_guest_count &gt; v_max_guests THEN
                     RAISE EXCEPTION 'Too many guests for this room type. Maximum: %', v_max_guests;
             END IF;
 
@@ -159,20 +196,20 @@
 
             RETURN v_booking_id;
             END;
-            $func$ LANGUAGE plpgsql;
-            </createProcedure>
+            $$ LANGUAGE plpgsql;
+        </sql>
     </changeSet>
 
-    <!-- Функция для check-in гостя -->
+    <!-- Функция для check-in гостя (обновлена для UUID) -->
     <changeSet id="205" author="hotel-system">
-        <createProcedure>
+        <sql splitStatements="false" stripComments="false">
             CREATE OR REPLACE FUNCTION check_in_guest(
-                p_booking_id INTEGER,
-                p_employee_id INTEGER
-            ) RETURNS VOID AS $func$
+                p_booking_id UUID,
+                p_employee_id UUID
+            ) RETURNS VOID AS $$
             DECLARE
-            v_room_id INTEGER;
-                v_current_status booking_status_enum;
+            v_room_id UUID;
+                v_current_status VARCHAR;
             BEGIN
                 -- Получение текущего статуса и номера
             SELECT status, room_id INTO v_current_status, v_room_id
@@ -200,20 +237,20 @@
                          p_booking_id, 'CONFIRMED', 'CHECKED_IN', 'Employee: ' || p_employee_id
                      );
             END;
-            $func$ LANGUAGE plpgsql;
-        </createProcedure>
+            $$ LANGUAGE plpgsql;
+        </sql>
     </changeSet>
 
-    <!-- Функция для check-out гостя -->
+    <!-- Функция для check-out гостя (обновлена для UUID) -->
     <changeSet id="206" author="hotel-system">
-        <createProcedure>
+        <sql splitStatements="false" stripComments="false">
             CREATE OR REPLACE FUNCTION check_out_guest(
-                p_booking_id INTEGER,
-                p_employee_id INTEGER
-            ) RETURNS VOID AS $func$
+                p_booking_id UUID,
+                p_employee_id UUID
+            ) RETURNS VOID AS $$
             DECLARE
-            v_room_id INTEGER;
-                v_current_status booking_status_enum;
+            v_room_id UUID;
+                v_current_status VARCHAR;
             BEGIN
                 -- Получение текущего статуса и номера
             SELECT status, room_id INTO v_current_status, v_room_id
@@ -245,41 +282,43 @@
                          p_booking_id, 'CHECKED_IN', 'CHECKED_OUT', 'Employee: ' || p_employee_id
                      );
             END;
-            $func$ LANGUAGE plpgsql;
-        </createProcedure>
+            $$ LANGUAGE plpgsql;
+        </sql>
     </changeSet>
 
     <!-- Триггер для автоматического обновления updated_at -->
     <changeSet id="207" author="hotel-system">
         <sql splitStatements="false" stripComments="false">
             CREATE OR REPLACE FUNCTION update_updated_at_column()
-        RETURNS TRIGGER AS $$
+            RETURNS TRIGGER AS $$
             BEGIN
-            NEW.updated_at = CURRENT_TIMESTAMP;
+                NEW.updated_at = CURRENT_TIMESTAMP;
             RETURN NEW;
             END;
-        $$ LANGUAGE plpgsql;
+            $$ LANGUAGE plpgsql;
         </sql>
     </changeSet>
 
+    <!-- Триггер для логирования изменений статуса -->
     <changeSet id="208" author="hotel-system">
         <sql splitStatements="false" stripComments="false">
             CREATE OR REPLACE FUNCTION log_booking_status_change()
-        RETURNS TRIGGER AS $$
+            RETURNS TRIGGER AS $$
             BEGIN
-            IF OLD.status != NEW.status THEN
-                INSERT INTO booking_history (
-                    booking_id, old_status, new_status, changed_by
-                ) VALUES (
-                    NEW.booking_id, OLD.status, NEW.status, CURRENT_USER
-                );
+                IF OLD.status != NEW.status THEN
+                    INSERT INTO booking_history (
+                        booking_id, old_status, new_status, changed_by
+                    ) VALUES (
+                        NEW.booking_id, OLD.status, NEW.status, CURRENT_USER
+                    );
             END IF;
             RETURN NEW;
             END;
-        $$ LANGUAGE plpgsql;
+            $$ LANGUAGE plpgsql;
         </sql>
     </changeSet>
 
+    <!-- Создание триггеров -->
     <changeSet id="209" author="hotel-system">
         <sql splitStatements="false" stripComments="false">
             CREATE TRIGGER update_bookings_updated_at
