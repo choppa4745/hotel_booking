@@ -12,6 +12,8 @@ import com.example.hotel_booking.room.entity.Room;
 import com.example.hotel_booking.room.service.RoomService;
 import com.example.hotel_booking.shared.exception.ResourceNotFoundException;
 import com.example.hotel_booking.shared.mapper.BookingMapper;
+import com.example.hotel_booking.shared.mapper.RoomMapper;
+import com.example.hotel_booking.shared.mapper.UserMapper;
 import com.example.hotel_booking.user.entity.Guest;
 import com.example.hotel_booking.user.service.GuestService;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,8 @@ public class BookingServiceImpl implements BookingService {
     private final GuestService guestService;
     private final RoomService roomService;
     private final BookingMapper bookingMapper;
+    private final UserMapper userMapper;
+    private final RoomMapper roomMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -44,7 +48,7 @@ public class BookingServiceImpl implements BookingService {
                 .stream()
                 .map(booking -> {
                     List<Guest> additionalGuests = getAdditionalGuests(booking.getBookingId());
-                    return bookingMapper.toResponse(booking, additionalGuests);
+                    return bookingMapper.toResponse(booking, additionalGuests, userMapper, roomMapper);
                 })
                 .toList();
     }
@@ -56,7 +60,7 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
         List<Guest> additionalGuests = getAdditionalGuests(id);
-        return bookingMapper.toResponse(booking, additionalGuests);
+        return bookingMapper.toResponse(booking, additionalGuests, userMapper, roomMapper);
     }
 
     @Override
@@ -67,7 +71,7 @@ public class BookingServiceImpl implements BookingService {
                 .stream()
                 .map(booking -> {
                     List<Guest> additionalGuests = getAdditionalGuests(booking.getBookingId());
-                    return bookingMapper.toResponse(booking, additionalGuests);
+                    return bookingMapper.toResponse(booking, additionalGuests, userMapper, roomMapper);
                 })
                 .toList();
     }
@@ -80,7 +84,7 @@ public class BookingServiceImpl implements BookingService {
                 .stream()
                 .map(booking -> {
                     List<Guest> additionalGuests = getAdditionalGuests(booking.getBookingId());
-                    return bookingMapper.toResponse(booking, additionalGuests);
+                    return bookingMapper.toResponse(booking, additionalGuests, userMapper, roomMapper);
                 })
                 .toList();
     }
@@ -93,7 +97,7 @@ public class BookingServiceImpl implements BookingService {
                 .stream()
                 .map(booking -> {
                     List<Guest> additionalGuests = getAdditionalGuests(booking.getBookingId());
-                    return bookingMapper.toResponse(booking, additionalGuests);
+                    return bookingMapper.toResponse(booking, additionalGuests, userMapper, roomMapper);
                 })
                 .toList();
     }
@@ -106,7 +110,7 @@ public class BookingServiceImpl implements BookingService {
                 .stream()
                 .map(booking -> {
                     List<Guest> additionalGuests = getAdditionalGuests(booking.getBookingId());
-                    return bookingMapper.toResponse(booking, additionalGuests);
+                    return bookingMapper.toResponse(booking, additionalGuests, userMapper, roomMapper);
                 })
                 .toList();
     }
@@ -151,7 +155,7 @@ public class BookingServiceImpl implements BookingService {
         roomService.updateRoomAvailability(room.getRoomId(), false);
 
         log.info("Booking created successfully: {}", savedBooking.getBookingId());
-        return bookingMapper.toResponse(savedBooking, additionalGuests);
+        return bookingMapper.toResponse(savedBooking, additionalGuests, userMapper, roomMapper);
     }
 
     @Override
@@ -166,7 +170,7 @@ public class BookingServiceImpl implements BookingService {
 
         Booking updatedBooking = bookingRepository.save(existingBooking);
         List<Guest> additionalGuests = getAdditionalGuests(id);
-        return bookingMapper.toResponse(updatedBooking, additionalGuests);
+        return bookingMapper.toResponse(updatedBooking, additionalGuests, userMapper, roomMapper);
     }
 
     @Override
@@ -201,7 +205,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus("CONFIRMED");
         Booking confirmedBooking = bookingRepository.save(booking);
         List<Guest> additionalGuests = getAdditionalGuests(id);
-        return bookingMapper.toResponse(confirmedBooking, additionalGuests);
+        return bookingMapper.toResponse(confirmedBooking, additionalGuests, userMapper, roomMapper);
     }
 
     @Override
@@ -218,7 +222,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setStatus("CHECKED_IN");
         Booking checkedInBooking = bookingRepository.save(booking);
         List<Guest> additionalGuests = getAdditionalGuests(id);
-        return bookingMapper.toResponse(checkedInBooking, additionalGuests);
+        return bookingMapper.toResponse(checkedInBooking, additionalGuests, userMapper, roomMapper);
     }
 
     @Override
@@ -238,7 +242,7 @@ public class BookingServiceImpl implements BookingService {
         roomService.updateRoomAvailability(booking.getRoom().getRoomId(), true);
 
         List<Guest> additionalGuests = getAdditionalGuests(id);
-        return bookingMapper.toResponse(checkedOutBooking, additionalGuests);
+        return bookingMapper.toResponse(checkedOutBooking, additionalGuests, userMapper, roomMapper);
     }
 
     @Override
@@ -255,7 +259,7 @@ public class BookingServiceImpl implements BookingService {
         return conflicts.stream()
                 .map(booking -> {
                     List<Guest> additionalGuests = getAdditionalGuests(booking.getBookingId());
-                    return bookingMapper.toResponse(booking, additionalGuests);
+                    return bookingMapper.toResponse(booking, additionalGuests, userMapper, roomMapper);
                 })
                 .toList();
     }
