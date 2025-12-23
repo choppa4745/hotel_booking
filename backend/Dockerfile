@@ -1,30 +1,33 @@
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# Build argument to skip dependency download step
-ARG SKIP_DEPENDENCY_DOWNLOAD=false
-
 # Copy Maven configuration
 COPY pom.xml .
 COPY mvnw .
 COPY .mvn .mvn
 
-# Download dependencies with retry and increased timeouts
-# Skip if SKIP_DEPENDENCY_DOWNLOAD is set to true
-RUN if [ "$SKIP_DEPENDENCY_DOWNLOAD" != "true" ]; then \
-        mvn dependency:resolve -B \
-            -Dmaven.wagon.http.retryHandler.count=3 \
-            -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
-            -Dmaven.wagon.http.readTimeout=60000 \
-            || mvn dependency:resolve -B \
-            -Dmaven.wagon.http.retryHandler.count=5 \
-            -Dmaven.wagon.httpconnectionManager.ttlSeconds=180 \
-            -Dmaven.wagon.http.readTimeout=90000; \
-    fi
-
-# Copy source code and build
+# Copy source code
 COPY src ./src
-RUN mvn clean package -DskipTests
+
+# Build with detailed logging and retry settings
+# Maven will download dependencies automatically during build
+RUN echo "=== Starting Maven build ===" && \
+    echo "Maven version: $(mvn -version)" && \
+    echo "Java version: $(java -version 2>&1)" && \
+    mvn clean package -DskipTests -B -e \
+        -Dmaven.wagon.http.retryHandler.count=5 \
+        -Dmaven.wagon.httpconnectionManager.ttlSeconds=180 \
+        -Dmaven.wagon.http.readTimeout=120000 \
+        -Dmaven.wagon.http.pool.timeout=120000 \
+        -Dmaven.wagon.http.socket.timeout=120000 || \
+    (echo "=== First build attempt failed, retrying with extended timeouts ===" && \
+     echo "Error details above. Retrying..." && \
+     mvn clean package -DskipTests -B -e \
+         -Dmaven.wagon.http.retryHandler.count=10 \
+         -Dmaven.wagon.httpconnectionManager.ttlSeconds=300 \
+         -Dmaven.wagon.http.readTimeout=180000 \
+         -Dmaven.wagon.http.pool.timeout=180000 \
+         -Dmaven.wagon.http.socket.timeout=180000)
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
