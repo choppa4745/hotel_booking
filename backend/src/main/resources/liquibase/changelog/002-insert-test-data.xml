@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Тестовые данные для типов номеров -->
+    <changeSet id="100" author="hotel-system">
+        <sql>
+            INSERT INTO room_types (type_name, base_price, max_guests, description) VALUES
+                                                                                        ('STANDARD', 100.00, 2, 'Standard room with basic amenities'),
+                                                                                        ('DELUXE', 150.00, 3, 'Deluxe room with extra space and amenities'),
+                                                                                        ('SUITE', 250.00, 4, 'Luxury suite with separate living area'),
+                                                                                        ('FAMILY', 180.00, 5, 'Family room with multiple beds');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для номеров -->
+    <changeSet id="101" author="hotel-system">
+        <sql>
+            INSERT INTO rooms (room_number, type_id, floor)
+            SELECT '101', type_id, 1 FROM room_types WHERE type_name = 'STANDARD'
+            UNION ALL SELECT '102', type_id, 1 FROM room_types WHERE type_name = 'STANDARD'
+            UNION ALL SELECT '103', type_id, 1 FROM room_types WHERE type_name = 'STANDARD'
+            UNION ALL SELECT '201', type_id, 2 FROM room_types WHERE type_name = 'DELUXE'
+            UNION ALL SELECT '202', type_id, 2 FROM room_types WHERE type_name = 'DELUXE'
+            UNION ALL SELECT '203', type_id, 2 FROM room_types WHERE type_name = 'DELUXE'
+            UNION ALL SELECT '301', type_id, 3 FROM room_types WHERE type_name = 'SUITE'
+            UNION ALL SELECT '302', type_id, 3 FROM room_types WHERE type_name = 'SUITE'
+            UNION ALL SELECT '401', type_id, 4 FROM room_types WHERE type_name = 'FAMILY'
+            UNION ALL SELECT '402', type_id, 4 FROM room_types WHERE type_name = 'FAMILY';
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для удобств -->
+    <changeSet id="102" author="hotel-system">
+        <sql>
+            INSERT INTO amenities (amenity_name, description) VALUES
+                                                                  ('WiFi', 'Free high-speed internet'),
+                                                                  ('TV', 'Flat-screen television'),
+                                                                  ('Air Conditioning', 'Climate control system'),
+                                                                  ('Mini Bar', 'Mini refrigerator with drinks'),
+                                                                  ('Safe', 'In-room safe for valuables');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для связи номеров и удобств -->
+    <changeSet id="103" author="hotel-system">
+        <sql>
+            INSERT INTO room_amenities (room_id, amenity_id) 
+            SELECT r.room_id, a.amenity_id 
+            FROM rooms r, amenities a
+            WHERE (r.room_number = '101' AND a.amenity_name IN ('WiFi', 'TV', 'Air Conditioning'))
+               OR (r.room_number = '102' AND a.amenity_name IN ('WiFi', 'TV', 'Air Conditioning'))
+               OR (r.room_number = '201' AND a.amenity_name IN ('WiFi', 'TV', 'Air Conditioning', 'Mini Bar', 'Safe'))
+               OR (r.room_number = '301' AND a.amenity_name IN ('WiFi', 'TV', 'Air Conditioning', 'Mini Bar', 'Safe'));
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для гостей -->
+    <changeSet id="104" author="hotel-system">
+        <sql>
+            INSERT INTO guests (first_name, last_name, email, phone, passport_number, date_of_birth) VALUES
+                                                                                                         ('John', 'Smith', 'john.smith@email.com', '+1234567890', 'AB123456', '1985-05-15'),
+                                                                                                         ('Maria', 'Garcia', 'maria.garcia@email.com', '+1234567891', 'CD789012', '1990-08-22'),
+                                                                                                         ('David', 'Johnson', 'david.johnson@email.com', '+1234567892', 'EF345678', '1978-12-10'),
+                                                                                                         ('Sarah', 'Wilson', 'sarah.wilson@email.com', '+1234567893', 'GH901234', '1992-03-25');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для сотрудников -->
+    <changeSet id="105" author="hotel-system">
+        <sql>
+            INSERT INTO employees (first_name, last_name, email, phone, position, hire_date) VALUES
+                                                                                                 ('Robert', 'Brown', 'robert.brown@hotel.com', '+1987654321', 'Manager', '2020-01-15'),
+                                                                                                 ('Emily', 'Wilson', 'emily.wilson@hotel.com', '+1987654322', 'Receptionist', '2021-03-20'),
+                                                                                                 ('Michael', 'Davis', 'michael.davis@hotel.com', '+1987654323', 'Housekeeper', '2022-01-15');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для пользователей -->
+    <!-- BCrypt хеши: admin123, operator123, client123 -->
+    <changeSet id="106" author="hotel-system">
+        <sql>
+            -- Админ (username: admin, password: admin123)
+            -- Оператор (username: operator1, password: operator123)
+            -- Клиенты (username: client1/client2, password: client123)
+            INSERT INTO users (username, password_hash, email, role, guest_id, employee_id) VALUES
+                                                                                                ('admin', '$2a$10$KF5TgIN24FZ3/Et7XZUJ3./XJI5oJzkiXAI7rM.msDN1HHJRgra6e', 'admin@hotel.com', 'ADMIN', NULL, 
+                                                                                                 (SELECT employee_id FROM employees WHERE email = 'robert.brown@hotel.com' LIMIT 1)),
+                                                                                                ('operator1', '$2a$10$GgvN1ZI/xJ.h5pQbudtwiu1OVqlcSbXPk7OQIk9OXDP0W4rBD84Hi', 'emily.wilson@hotel.com', 'OPERATOR', NULL, 
+                                                                                                 (SELECT employee_id FROM employees WHERE email = 'emily.wilson@hotel.com' LIMIT 1)),
+                                                                                                ('client1', '$2a$10$Gw0ZW1fXwTwCBEAePozYBOn1woc36J6bIVU9Blgqp2.2dEphsxDnq', 'john.smith@email.com', 'CLIENT', 
+                                                                                                 (SELECT guest_id FROM guests WHERE email = 'john.smith@email.com' LIMIT 1), NULL),
+                                                                                                ('client2', '$2a$10$Gw0ZW1fXwTwCBEAePozYBOn1woc36J6bIVU9Blgqp2.2dEphsxDnq', 'maria.garcia@email.com', 'CLIENT', 
+                                                                                                 (SELECT guest_id FROM guests WHERE email = 'maria.garcia@email.com' LIMIT 1), NULL);
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для бронирований -->
+    <changeSet id="107" author="hotel-system">
+        <sql>
+            INSERT INTO bookings (guest_id, room_id, check_in_date, check_out_date, status)
+            SELECT 
+                g.guest_id,
+                r.room_id,
+                '2024-01-15'::date,
+                '2024-01-20'::date,
+                'CHECKED_OUT'::booking_status_enum
+            FROM guests g, rooms r
+            WHERE g.email = 'john.smith@email.com' AND r.room_number = '101'
+            
+            UNION ALL
+            
+            SELECT 
+                g.guest_id,
+                r.room_id,
+                '2024-02-01'::date,
+                '2024-02-05'::date,
+                'CONFIRMED'::booking_status_enum
+            FROM guests g, rooms r
+            WHERE g.email = 'maria.garcia@email.com' AND r.room_number = '201'
+            
+            UNION ALL
+            
+            SELECT 
+                g.guest_id,
+                r.room_id,
+                CURRENT_DATE + 1,
+                CURRENT_DATE + 3,
+                'PENDING'::booking_status_enum
+            FROM guests g, rooms r
+            WHERE g.email = 'david.johnson@email.com' AND r.room_number = '301'
+            
+            UNION ALL
+            
+            SELECT 
+                g.guest_id,
+                r.room_id,
+                CURRENT_DATE + 5,
+                CURRENT_DATE + 7,
+                'CONFIRMED'::booking_status_enum
+            FROM guests g, rooms r
+            WHERE g.email = 'john.smith@email.com' AND r.room_number = '103';
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для дополнительных гостей -->
+    <changeSet id="108" author="hotel-system">
+        <sql>
+            INSERT INTO booking_guests (booking_id, guest_id)
+            SELECT b.booking_id, g.guest_id
+            FROM bookings b
+            CROSS JOIN guests g
+            WHERE b.check_in_date = '2024-01-15'::date
+              AND g.email IN ('maria.garcia@email.com', 'david.johnson@email.com');
+        </sql>
+    </changeSet>
+
+    <!-- Тестовые данные для графика уборки -->
+    <changeSet id="109" author="hotel-system">
+        <sql>
+            INSERT INTO cleaning_schedule (room_id, employee_id, cleaning_date, start_time, end_time)
+            SELECT r.room_id, e.employee_id, CURRENT_DATE, '09:00'::time, '10:30'::time
+            FROM rooms r, employees e
+            WHERE r.room_number = '101' AND e.email = 'michael.davis@hotel.com'
+            
+            UNION ALL
+            
+            SELECT r.room_id, e.employee_id, CURRENT_DATE, '10:30'::time, '11:45'::time
+            FROM rooms r, employees e
+            WHERE r.room_number = '102' AND e.email = 'michael.davis@hotel.com'
+            
+            UNION ALL
+            
+            SELECT r.room_id, e.employee_id, CURRENT_DATE + 1, '08:00'::time, NULL
+            FROM rooms r, employees e
+            WHERE r.room_number = '201' AND e.email = 'michael.davis@hotel.com';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

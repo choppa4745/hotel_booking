@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5443/hotel_booking
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  liquibase:
+    enabled: true
+    change-log: classpath:liquibase/changelog/db.changelog-master.xml
+
+server:
+  port: 8081
+
+app:
+  jwt:
+    secret: "CHANGE_ME_SUPER_SECRET_32+_CHARS_MINIMUM"
+    access-token-ttl-minutes: 60

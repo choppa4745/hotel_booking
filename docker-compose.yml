@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: hotel-postgres
+    environment:
+      POSTGRES_DB: hotel_booking
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5443:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - hotel-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hotel-backend
+    ports:
+      - '8081:8081'
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hotel_booking
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_LIQUIBASE_ENABLED: 'true'
+      APP_JWT_SECRET: 'CHANGE_ME_SUPER_SECRET_32+_CHARS_MINIMUM'
+      APP_JWT_ACCESS_TOKEN_TTL_MINUTES: '60'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hotel-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: hotel-frontend
+    ports:
+      - '5173:80'
+    depends_on:
+      - backend
+    networks:
+      - hotel-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  hotel-network:
+    driver: bridge
+

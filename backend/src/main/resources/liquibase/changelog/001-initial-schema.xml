@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Включаем расширение для UUID в PostgreSQL -->
+    <changeSet id="0" author="hotel-system">
+        <sql>
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        </sql>
+    </changeSet>
+
+    <!-- Создание пользовательских типов -->
+    <changeSet id="1" author="hotel-system">
+        <sql>
+            CREATE TYPE room_type_enum AS ENUM ('STANDARD', 'DELUXE', 'SUITE', 'FAMILY');
+            CREATE TYPE booking_status_enum AS ENUM ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED');
+            CREATE TYPE role_enum AS ENUM ('ADMIN', 'OPERATOR', 'CLIENT');
+        </sql>
+    </changeSet>
+
+    <!-- Таблица типов номеров -->
+    <changeSet id="2" author="hotel-system">
+        <createTable tableName="room_types">
+            <column name="type_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="type_name" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="base_price" type="DECIMAL(10,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="max_guests" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Check constraints для room_types через SQL -->
+    <changeSet id="3" author="hotel-system">
+        <sql>
+            ALTER TABLE room_types ADD CONSTRAINT ck_room_types_base_price_positive CHECK (base_price > 0);
+            ALTER TABLE room_types ADD CONSTRAINT ck_room_types_max_guests_positive CHECK (max_guests > 0);
+        </sql>
+    </changeSet>
+
+    <!-- Таблица номеров -->
+    <changeSet id="4" author="hotel-system">
+        <createTable tableName="rooms">
+            <column name="room_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_number" type="VARCHAR(10)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="type_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_rooms_type_id" references="room_types(type_id)"/>
+            </column>
+            <column name="floor" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_available" type="BOOLEAN" defaultValueBoolean="true"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Check constraints для rooms через SQL -->
+    <changeSet id="5" author="hotel-system">
+        <sql>
+            ALTER TABLE rooms ADD CONSTRAINT ck_rooms_floor_positive CHECK (floor > 0);
+        </sql>
+    </changeSet>
+
+    <!-- Таблица удобств -->
+    <changeSet id="6" author="hotel-system">
+        <createTable tableName="amenities">
+            <column name="amenity_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="amenity_name" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Таблица связи номеров и удобств -->
+    <changeSet id="7" author="hotel-system">
+        <createTable tableName="room_amenities">
+            <column name="room_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_room_amenities_room_id" references="rooms(room_id)"/>
+            </column>
+            <column name="amenity_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_room_amenities_amenity_id" references="amenities(amenity_id)"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="room_amenities" columnNames="room_id, amenity_id"/>
+    </changeSet>
+
+    <!-- Таблица гостей -->
+    <changeSet id="8" author="hotel-system">
+        <createTable tableName="guests">
+            <column name="guest_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="first_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="phone" type="VARCHAR(20)"/>
+            <column name="passport_number" type="VARCHAR(50)">
+                <constraints unique="true"/>
+            </column>
+            <column name="date_of_birth" type="DATE"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Таблица бронирований -->
+    <changeSet id="9" author="hotel-system">
+        <createTable tableName="bookings">
+            <column name="booking_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="guest_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_bookings_guest_id" references="guests(guest_id)"/>
+            </column>
+            <column name="room_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_bookings_room_id" references="rooms(room_id)"/>
+            </column>
+            <column name="check_in_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="check_out_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="PENDING"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Check constraint для bookings через SQL -->
+    <changeSet id="10" author="hotel-system">
+        <sql>
+            ALTER TABLE bookings ADD CONSTRAINT ck_bookings_valid_dates CHECK (check_out_date > check_in_date);
+        </sql>
+    </changeSet>
+
+    <!-- Таблица дополнительных гостей -->
+    <changeSet id="11" author="hotel-system">
+        <createTable tableName="booking_guests">
+            <column name="booking_guest_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="booking_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_booking_guests_booking_id" references="bookings(booking_id)"/>
+            </column>
+            <column name="guest_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_booking_guests_guest_id" references="guests(guest_id)"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Таблица сотрудников -->
+    <changeSet id="12" author="hotel-system">
+        <createTable tableName="employees">
+            <column name="employee_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="first_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="phone" type="VARCHAR(20)"/>
+            <column name="position" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hire_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Таблица графика уборки -->
+    <changeSet id="13" author="hotel-system">
+        <createTable tableName="cleaning_schedule">
+            <column name="schedule_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_cleaning_schedule_room_id" references="rooms(room_id)"/>
+            </column>
+            <column name="employee_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_cleaning_schedule_employee_id" references="employees(employee_id)"/>
+            </column>
+            <column name="cleaning_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_time" type="TIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_time" type="TIME"/>
+            <column name="notes" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Таблица истории бронирований -->
+    <changeSet id="14" author="hotel-system">
+        <createTable tableName="booking_history">
+            <column name="history_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="booking_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="old_status" type="VARCHAR(20)"/>
+            <column name="new_status" type="VARCHAR(20)"/>
+            <column name="changed_by" type="VARCHAR(100)"/>
+            <column name="change_reason" type="TEXT"/>
+            <column name="changed_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Таблица истории цен -->
+    <changeSet id="15" author="hotel-system">
+        <createTable tableName="price_history">
+            <column name="price_history_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="room_type_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_price_history_room_type_id" references="room_types(type_id)"/>
+            </column>
+            <column name="old_price" type="DECIMAL(10,2)"/>
+            <column name="new_price" type="DECIMAL(10,2)"/>
+            <column name="changed_by" type="VARCHAR(100)"/>
+            <column name="changed_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Таблица пользователей -->
+    <changeSet id="16" author="hotel-system">
+        <createTable tableName="users">
+            <column name="user_id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="password_hash" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="role" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="guest_id" type="UUID">
+                <constraints foreignKeyName="fk_users_guest_id" references="guests(guest_id)"/>
+            </column>
+            <column name="employee_id" type="UUID">
+                <constraints foreignKeyName="fk_users_employee_id" references="employees(employee_id)"/>
+            </column>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Check constraint для users через SQL -->
+    <changeSet id="17" author="hotel-system">
+        <sql>
+            ALTER TABLE users ADD CONSTRAINT ck_users_valid_association
+                CHECK (
+                    (role = 'CLIENT' AND guest_id IS NOT NULL AND employee_id IS NULL)
+                        OR
+                    (role IN ('ADMIN', 'OPERATOR') AND employee_id IS NOT NULL AND guest_id IS NULL)
+                    );
+        </sql>
+    </changeSet>
+</databaseChangeLog>

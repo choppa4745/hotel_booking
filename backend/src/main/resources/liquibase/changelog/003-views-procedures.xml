@@ -1,0 +1,392 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Представление для свободных номеров -->
+    <changeSet id="200" author="hotel-system">
+        <createView viewName="available_rooms_view" replaceIfExists="true">
+            SELECT
+                r.room_id,
+                r.room_number,
+                rt.type_name,
+                rt.base_price,
+                rt.max_guests,
+                r.floor,
+                r.is_available
+            FROM rooms r
+                     JOIN room_types rt ON r.type_id = rt.type_id
+            WHERE r.is_available = TRUE
+              AND r.room_id NOT IN (
+                SELECT b.room_id
+                FROM bookings b
+                WHERE b.status IN ('CONFIRMED', 'CHECKED_IN')
+                  AND CURRENT_DATE BETWEEN b.check_in_date AND b.check_out_date
+            )
+        </createView>
+    </changeSet>
+
+    <!-- Представление для деталей бронирований -->
+    <changeSet id="201" author="hotel-system">
+        <createView viewName="booking_details_view" replaceIfExists="true">
+            SELECT
+                b.booking_id,
+                g.first_name || ' ' || g.last_name as guest_name,
+                g.email as guest_email,
+                r.room_number,
+                rt.type_name,
+                b.check_in_date,
+                b.check_out_date,
+                b.status,
+                b.created_at
+            FROM bookings b
+                     JOIN guests g ON b.guest_id = g.guest_id
+                     JOIN rooms r ON b.room_id = r.room_id
+                     JOIN room_types rt ON r.type_id = rt.type_id
+        </createView>
+    </changeSet>
+
+    <!-- Функция для расчета стоимости бронирования (обновлена для UUID) -->
+    <changeSet id="202" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION calculate_booking_price(
+                p_room_id UUID,
+                p_check_in_date DATE,
+                p_check_out_date DATE
+            ) RETURNS DECIMAL(10,2) AS $$
+            DECLARE
+            v_nights INTEGER;
+                v_base_price DECIMAL(10,2);
+                v_total_price DECIMAL(10,2);
+                v_season_multiplier DECIMAL(3,2) := 1.0;
+            BEGIN
+                v_nights := p_check_out_date - p_check_in_date;
+
+                IF v_nights &lt;= 0 THEN
+                    RAISE EXCEPTION 'Invalid date range';
+            END IF;
+
+            SELECT base_price INTO v_base_price
+            FROM rooms r
+                     JOIN room_types rt ON r.type_id = rt.type_id
+            WHERE r.room_id = p_room_id;
+
+            IF EXTRACT(MONTH FROM p_check_in_date) IN (6,7,8,12) THEN
+                    v_season_multiplier := 1.2;
+                ELSIF EXTRACT(MONTH FROM p_check_in_date) IN (1,2,11) THEN
+                    v_season_multiplier := 0.8;
+            END IF;
+
+                IF v_nights &gt;= 7 THEN
+                    v_season_multiplier := v_season_multiplier * 0.9;
+                ELSIF v_nights &gt;= 3 THEN
+                    v_season_multiplier := v_season_multiplier * 0.95;
+            END IF;
+
+                v_total_price := v_base_price * v_nights * v_season_multiplier;
+            RETURN v_total_price;
+            END; $$ LANGUAGE plpgsql;
+        </sql>
+    </changeSet>
+
+    <!-- Функция для поиска свободных номеров на период (обновлена для UUID) -->
+    <changeSet id="203" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION find_available_rooms(
+                p_check_in_date DATE,
+                p_check_out_date DATE,
+                p_room_type VARCHAR DEFAULT NULL
+            ) RETURNS TABLE(
+                room_id UUID,
+                room_number VARCHAR,
+                type_name VARCHAR,
+                base_price DECIMAL(10,2),
+                max_guests INTEGER,
+                floor INTEGER
+            ) AS $$
+            BEGIN
+            RETURN QUERY
+            SELECT
+                r.room_id,
+                r.room_number,
+                rt.type_name::VARCHAR,
+                    rt.base_price,
+                rt.max_guests,
+                r.floor
+            FROM rooms r
+                     JOIN room_types rt ON r.type_id = rt.type_id
+            WHERE r.is_available = TRUE
+              AND (p_room_type IS NULL OR rt.type_name::VARCHAR = p_room_type)
+              AND r.room_id NOT IN (
+                SELECT b.room_id
+                FROM bookings b
+                WHERE b.status IN ('CONFIRMED', 'CHECKED_IN')
+                  AND (p_check_in_date, p_check_out_date) OVERLAPS (b.check_in_date, b.check_out_date)
+            );
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+    </changeSet>
+
+    <!-- Процедура для создания бронирования (обновлена для UUID) -->
+    <changeSet id="204" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION create_booking(
+                p_guest_id UUID,
+                p_room_id UUID,
+                p_check_in_date DATE,
+                p_check_out_date DATE,
+                p_additional_guest_ids UUID[] DEFAULT NULL
+            ) RETURNS UUID AS $$
+            DECLARE
+            v_booking_id UUID;
+                v_guest_count INTEGER;
+                v_max_guests INTEGER;
+                v_additional_guest_id UUID;
+                v_is_available BOOLEAN;
+            BEGIN
+                -- Проверка доступности номера
+            SELECT is_available INTO v_is_available
+            FROM rooms
+            WHERE room_id = p_room_id;
+
+            IF NOT v_is_available THEN
+                    RAISE EXCEPTION 'Room is not available';
+            END IF;
+
+                -- Проверка на пересечение дат
+                IF EXISTS (
+                    SELECT 1 FROM bookings
+                    WHERE room_id = p_room_id
+                      AND status IN ('CONFIRMED', 'CHECKED_IN')
+                      AND (p_check_in_date, p_check_out_date) OVERLAPS (check_in_date, check_out_date)
+                ) THEN
+                    RAISE EXCEPTION 'Room is already booked for these dates';
+            END IF;
+
+                -- Проверка максимального количества гостей
+            SELECT max_guests INTO v_max_guests
+            FROM rooms r
+                     JOIN room_types rt ON r.type_id = rt.type_id
+            WHERE r.room_id = p_room_id;
+
+            v_guest_count := 1; -- основной гость
+                IF p_additional_guest_ids IS NOT NULL THEN
+                    v_guest_count := v_guest_count + array_length(p_additional_guest_ids, 1);
+            END IF;
+
+                IF v_guest_count &gt; v_max_guests THEN
+                    RAISE EXCEPTION 'Too many guests for this room type. Maximum: %', v_max_guests;
+            END IF;
+
+                -- Создание основного бронирования
+            INSERT INTO bookings (guest_id, room_id, check_in_date, check_out_date, status)
+            VALUES (p_guest_id, p_room_id, p_check_in_date, p_check_out_date, 'CONFIRMED')
+                RETURNING booking_id INTO v_booking_id;
+
+            -- Добавление дополнительных гостей
+            IF p_additional_guest_ids IS NOT NULL THEN
+                    FOREACH v_additional_guest_id IN ARRAY p_additional_guest_ids LOOP
+                        INSERT INTO booking_guests (booking_id, guest_id)
+                        VALUES (v_booking_id, v_additional_guest_id);
+            END LOOP;
+            END IF;
+
+            RETURN v_booking_id;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+    </changeSet>
+
+    <!-- Функция для check-in гостя (обновлена для UUID) -->
+    <changeSet id="205" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION check_in_guest(
+            p_booking_id UUID,
+            p_employee_id UUID
+        ) RETURNS VOID AS $$
+        DECLARE
+            v_room_id UUID;
+            v_current_status VARCHAR;
+            BEGIN
+            SELECT status, room_id INTO v_current_status, v_room_id
+            FROM bookings
+            WHERE booking_id = p_booking_id;
+
+            IF v_current_status != 'CONFIRMED' THEN
+                RAISE EXCEPTION 'Cannot check in booking with status: %', v_current_status;
+            END IF;
+
+            UPDATE bookings
+            SET status = 'CHECKED_IN', updated_at = CURRENT_TIMESTAMP
+            WHERE booking_id = p_booking_id;
+
+            UPDATE rooms
+            SET is_available = FALSE
+            WHERE room_id = v_room_id;
+
+            -- ВАЖНО: историю НЕ пишем тут (пишет trigger_log_booking_status)
+            END;
+        $$ LANGUAGE plpgsql;
+        </sql>
+    </changeSet>
+
+    <!-- Функция для check-out гостя (обновлена для UUID) -->
+    <changeSet id="206" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION check_out_guest(
+            p_booking_id UUID,
+            p_employee_id UUID
+        ) RETURNS VOID AS $$
+        DECLARE
+            v_room_id UUID;
+            v_current_status VARCHAR;
+            BEGIN
+            SELECT status, room_id INTO v_current_status, v_room_id
+            FROM bookings
+            WHERE booking_id = p_booking_id;
+
+            IF v_current_status != 'CHECKED_IN' THEN
+                RAISE EXCEPTION 'Cannot check out booking with status: %', v_current_status;
+            END IF;
+
+            UPDATE bookings
+            SET status = 'CHECKED_OUT', updated_at = CURRENT_TIMESTAMP
+            WHERE booking_id = p_booking_id;
+
+            UPDATE rooms
+            SET is_available = TRUE
+            WHERE room_id = v_room_id;
+
+            INSERT INTO cleaning_schedule (room_id, employee_id, cleaning_date, start_time)
+            VALUES (v_room_id, p_employee_id, CURRENT_DATE, CURRENT_TIME);
+
+            -- ВАЖНО: историю НЕ пишем тут (пишет trigger_log_booking_status)
+            END;
+        $$ LANGUAGE plpgsql;
+        </sql>
+    </changeSet>
+
+    <!-- Триггер для автоматического обновления updated_at -->
+    <changeSet id="207" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION update_updated_at_column()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = CURRENT_TIMESTAMP;
+            RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+    </changeSet>
+
+    <!-- Триггер для логирования изменений статуса -->
+    <changeSet id="208" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION log_booking_status_change()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                        v_reason TEXT;
+                v_changed_by TEXT;
+                        BEGIN
+
+                IF OLD.status IS DISTINCT FROM NEW.status THEN
+                    v_reason := current_setting('app.change_reason', true);
+                    v_changed_by := current_setting('app.changed_by', true);
+
+                        INSERT INTO booking_history (
+                            booking_id, old_status, new_status, changed_by, change_reason
+                        ) VALUES (
+                                     NEW.booking_id,
+                                     OLD.status,
+                                     NEW.status,
+                                     COALESCE(v_changed_by, CURRENT_USER),
+                                     v_reason
+                                 );
+                        END IF;
+
+                        RETURN NEW;
+                        END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+    </changeSet>
+
+    <!-- Создание триггеров -->
+    <changeSet id="209" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE TRIGGER update_bookings_updated_at
+                BEFORE UPDATE ON bookings
+                FOR EACH ROW
+                EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER trigger_log_booking_status
+                AFTER UPDATE ON bookings
+                FOR EACH ROW
+                EXECUTE FUNCTION log_booking_status_change();
+        </sql>
+    </changeSet>
+
+    <!-- Представление для отчета по занятости -->
+    <changeSet id="210" author="hotel-system">
+        <createView viewName="occupancy_report_view" replaceIfExists="true">
+            SELECT
+                r.room_number,
+                rt.type_name,
+                COUNT(b.booking_id) as total_bookings,
+                COALESCE(SUM(
+                                 CASE
+                                     WHEN b.status IN ('CHECKED_OUT', 'CONFIRMED') THEN
+                                         calculate_booking_price(b.room_id, b.check_in_date, b.check_out_date)
+                                     ELSE 0
+                                     END
+                         ), 0) as total_revenue
+            FROM rooms r
+                     JOIN room_types rt ON r.type_id = rt.type_id
+                     LEFT JOIN bookings b ON r.room_id = b.room_id
+            GROUP BY r.room_number, rt.type_name
+        </createView>
+    </changeSet>
+
+    <!-- Индексы для улучшения производительности -->
+    <changeSet id="211" author="hotel-system">
+        <sql>
+            CREATE INDEX idx_bookings_dates ON bookings (check_in_date, check_out_date);
+            CREATE INDEX idx_bookings_status ON bookings (status);
+            CREATE INDEX idx_bookings_room_id ON bookings (room_id);
+            CREATE INDEX idx_rooms_availability ON rooms (is_available);
+            CREATE INDEX idx_cleaning_schedule_date ON cleaning_schedule (cleaning_date);
+            CREATE INDEX idx_guests_email ON guests (email);
+            CREATE INDEX idx_users_username ON users (username);
+        </sql>
+    </changeSet>
+
+    <changeSet id="212" author="hotel-system">
+        <sql splitStatements="false" stripComments="false">
+            CREATE OR REPLACE FUNCTION log_room_type_price_change()
+        RETURNS TRIGGER AS $$
+            BEGIN
+            IF OLD.base_price IS DISTINCT FROM NEW.base_price THEN
+                INSERT INTO price_history (
+                    room_type_id, old_price, new_price, changed_by
+                ) VALUES (
+                    OLD.type_id, OLD.base_price, NEW.base_price, CURRENT_USER
+                );
+            END IF;
+
+            RETURN NEW;
+            END;
+        $$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS trigger_log_room_type_price ON room_types;
+
+            CREATE TRIGGER trigger_log_room_type_price
+                AFTER UPDATE OF base_price ON room_types
+                FOR EACH ROW
+                EXECUTE FUNCTION log_room_type_price_change();
+        </sql>
+    </changeSet>
+
+
+</databaseChangeLog>

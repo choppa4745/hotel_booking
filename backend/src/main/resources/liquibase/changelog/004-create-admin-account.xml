@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Создание админского аккаунта -->
+    <!-- Этот changeSet создает админский аккаунт, если его еще нет -->
+    <changeSet id="200" author="hotel-system">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="users"/>
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM users WHERE username = 'admin'
+            </sqlCheck>
+        </preConditions>
+        <comment>Создание админского аккаунта (username: admin, password: admin123)</comment>
+        <sql>
+            -- Сначала создаем сотрудника-админа, если его нет
+            INSERT INTO employees (first_name, last_name, email, phone, position, hire_date, is_active, created_at)
+            SELECT 'Admin', 'User', 'admin@hotel.com', '+1000000000', 'Administrator', CURRENT_DATE, true, CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (
+                SELECT 1 FROM employees WHERE email = 'admin@hotel.com'
+            );
+            
+            -- Затем создаем админский аккаунт
+            INSERT INTO users (username, password_hash, email, role, guest_id, employee_id, is_active, created_at)
+            SELECT 
+                'admin',
+                '$2a$10$KF5TgIN24FZ3/Et7XZUJ3./XJI5oJzkiXAI7rM.msDN1HHJRgra6e', -- BCrypt hash для "admin123"
+                'admin@hotel.com',
+                'ADMIN',
+                NULL,
+                (SELECT employee_id FROM employees WHERE email = 'admin@hotel.com' LIMIT 1),
+                true,
+                CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (
+                SELECT 1 FROM users WHERE username = 'admin'
+            );
+        </sql>
+        <rollback>
+            DELETE FROM users WHERE username = 'admin';
+            DELETE FROM employees WHERE email = 'admin@hotel.com';
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
+
